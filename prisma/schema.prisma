@@ -22,6 +22,8 @@ model ParkingCode {
   status             Status
   fecha_creacion     DateTime @default(now())
   fecha_actualizacion DateTime @updatedAt
+  space_id           Int?
+  space              ParkingSpace? @relation(name: "SpaceCodes", fields: [space_id], references: [id])
 }
 
 model AuditLog {
@@ -41,6 +43,7 @@ model ParkingSpace {
   updated_at DateTime
 
   logs SpaceLog[]
+  codes ParkingCode[] @relation(name: "SpaceCodes")
 }
 
 // Historial de cambios de espacios

@@ -72,8 +72,33 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       });
     } catch {}
 
-    // Responder
-    return res.status(200).json({ ok: true, space });
+    // Si el espacio pasó a ocupado, generar/obtener código WAITING asociado al espacio
+    let code: string | undefined;
+    if (estado === true) {
+      // Reutiliza código activo si existe; si no, genera uno nuevo
+      const cutoff = new Date(Date.now() - (parseInt(process.env.WAITING_TIMEOUT_MINUTES || "30", 10)) * 60 * 1000);
+      const existing = await prisma.parkingCode.findFirst({
+        where: { space_id: id, status: "WAITING", fecha_creacion: { gt: cutoff } },
+        select: { codigo: true },
+      });
+      if (existing) {
+        code = existing.codigo;
+      } else {
+        // intenta generar único
+        for (let i = 0; i < 5; i++) {
+          const c = Math.floor(100000 + Math.random() * 900000).toString();
+          try {
+            await prisma.parkingCode.create({ data: { codigo: c, status: "WAITING", space_id: id } });
+            code = c; break;
+          } catch (e: any) {
+            if (!/Unique constraint failed/i.test(e?.message || "")) throw e;
+          }
+        }
+      }
+    }
+
+    // Responder incluyendo el código cuando aplica
+    return res.status(200).json({ ok: true, space, code });
   } catch (e: any) {
     return res.status(500).json({ error: e?.message || "Error interno" });
   }

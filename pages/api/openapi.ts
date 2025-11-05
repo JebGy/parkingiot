@@ -46,6 +46,7 @@ const spec = {
                         updated_at: { type: "string", format: "date-time" },
                       },
                     },
+                    code: { type: "string", nullable: true, description: "Código asociado cuando el espacio está ocupado" },
                   },
                 },
               },
