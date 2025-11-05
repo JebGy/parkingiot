@@ -33,3 +33,25 @@ model AuditLog {
   datos       Json
   codigo      String?
 }
+
+// Estado de los espacios de parking (1-3)
+model ParkingSpace {
+  id         Int      @id
+  occupied   Boolean  @default(false)
+  updated_at DateTime
+
+  logs SpaceLog[]
+}
+
+// Historial de cambios de espacios
+model SpaceLog {
+  id         Int      @id @default(autoincrement())
+  space_id   Int
+  occupied   Boolean
+  timestamp  DateTime @default(now())
+  ip         String?
+
+  space ParkingSpace @relation(fields: [space_id], references: [id], onDelete: Cascade)
+
+  @@index([space_id, timestamp])
+}

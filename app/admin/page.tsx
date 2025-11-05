@@ -30,10 +30,24 @@ export default function AdminPage() {
   const [stats, setStats] = useState<{ distribution: Record<string, number>; byDay: Record<string, number>; } | null>(null);
   const [historyCode, setHistoryCode] = useState<string>("");
   const [history, setHistory] = useState<any[]>([]);
+  const [spaces, setSpaces] = useState<Array<{ id: number; occupied: boolean; updated_at: string | null }>>([
+    { id: 1, occupied: false, updated_at: null },
+    { id: 2, occupied: false, updated_at: null },
+    { id: 3, occupied: false, updated_at: null },
+  ]);
+  const [spaceStats, setSpaceStats] = useState<Record<number, { occupied_count: number; free_count: number }>>({
+    1: { occupied_count: 0, free_count: 0 },
+    2: { occupied_count: 0, free_count: 0 },
+    3: { occupied_count: 0, free_count: 0 },
+  });
 
   useEffect(() => {
     fetchCodes();
     fetchStats();
+    // Poll espacios cada 2s
+    const poll = setInterval(fetchSpaces, 2000);
+    fetchSpaces();
+    return () => clearInterval(poll);
   }, []);
 
   const fetchCodes = async () => {
@@ -55,6 +69,16 @@ export default function AdminPage() {
     const data = await res.json();
     if (!res.ok) return console.error(data?.error || "Error stats");
     setStats(data);
+  };
+
+  const fetchSpaces = async () => {
+    const res = await fetch("/api/spaces");
+    const data = await res.json();
+    if (!res.ok) return console.error(data?.error || "Error espacios");
+    setSpaces(
+      (data.spaces || []).map((s: any) => ({ id: s.id, occupied: !!s.occupied, updated_at: s.updated_at ? new Date(s.updated_at).toISOString() : null }))
+    );
+    setSpaceStats(data.stats || {});
   };
 
   useEffect(() => {
@@ -196,6 +220,26 @@ export default function AdminPage() {
         <div className="bg-white/5 border border-white/10 rounded-lg p-4">
           <h3 className="font-semibold mb-3">Frecuencia por día</h3>
           <Bar data={byDayData} />
+        </div>
+      </div>
+
+      {/* Espacios de parking (tiempo real via polling) */}
+      <div className="bg-white/5 border border-white/10 rounded-lg p-4">
+        <h3 className="font-semibold mb-3">Espacios de parking</h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {spaces.map((s) => (
+            <div key={s.id} className={`rounded-md p-4 border ${s.occupied ? "bg-red-600/20 border-red-600/40" : "bg-green-600/20 border-green-600/40"}`}>
+              <div className="flex items-center justify-between">
+                <span className="font-semibold">Espacio {s.id}</span>
+                <span className={`px-2 py-1 rounded text-xs ${s.occupied ? "bg-red-600" : "bg-green-600"}`}>{s.occupied ? "Ocupado" : "Libre"}</span>
+              </div>
+              <p className="mt-2 text-sm text-gray-300">Última actualización: {s.updated_at ? new Date(s.updated_at).toLocaleString() : "—"}</p>
+              <div className="mt-3 text-xs text-gray-400">
+                <p>Ocupado: {spaceStats[s.id]?.occupied_count ?? 0}</p>
+                <p>Libre: {spaceStats[s.id]?.free_count ?? 0}</p>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
 
