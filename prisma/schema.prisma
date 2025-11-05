@@ -7,7 +7,8 @@ datasource db {
 generator client {
   provider = "prisma-client-js"
   // Include engine for local dev and Vercel's Linux environment
-  binaryTargets = ["native", "rhel-openssl-3.0.x"]
+  binaryTargets = ["native", "rhel-openssl-3.0.x", "debian-openssl-3.0.x", "linux-musl"]
+  engineType = "binary"
 }
 
 enum Status {
