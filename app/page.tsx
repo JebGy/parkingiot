@@ -26,13 +26,13 @@ export default function Home() {
     setLoading(true);
     try {
       const res = await fetch("/api/codes", {
-        method: "POST",
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ codigo: code.trim() }),
+        body: JSON.stringify({ codigo: code.trim(), status: "CLAIMED" }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || "Error al enviar código");
-      setSuccess("Código registrado en estado WAITING");
+      if (!res.ok) throw new Error(data?.error || "Error al reclamar código");
+      setSuccess("Código cambiado a estado CLAIMED");
       setCode("");
     } catch (err: any) {
       setError(err.message);

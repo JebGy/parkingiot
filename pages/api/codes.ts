@@ -90,6 +90,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(400).json({ error: "Estado inválido" });
     }
     try {
+      // Si el usuario intenta reclamar, validar estado actual
+      if (status === "CLAIMED") {
+        const current = await prisma.parkingCode.findUnique({
+          where: { codigo: code },
+          select: { status: true, fecha_creacion: true },
+        });
+        if (!current) return res.status(404).json({ error: "Código no encontrado. Debe ser generado por el ESP32." });
+        if (current.status === "EXPIRED") return res.status(400).json({ error: "No se puede reclamar un código expirado." });
+        if (current.status !== "WAITING") return res.status(400).json({ error: "El código no está en estado WAITING." });
+      }
+
       const updated = await prisma.parkingCode.update({
         where: { codigo: code },
         data: { status: status as any },
@@ -98,7 +109,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       await logAction({ req, action: "CHANGE_STATUS", data: { codigo: code, status }, codigo: code });
       return res.status(200).json({ ok: true, code: updated });
     } catch (e: any) {
-      return res.status(400).json({ error: e.message });
+      const msg = String(e?.message || "");
+      if (/Record to update not found|P2025/.test(msg)) {
+        return res.status(404).json({ error: "Código no encontrado. Debe ser generado por el ESP32." });
+      }
+      return res.status(400).json({ error: msg });
     }
   }
 
