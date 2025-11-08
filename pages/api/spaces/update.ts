@@ -1,36 +1,30 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "@/lib/prisma";
 
-function unauthorized(res: NextApiResponse) {
-  res.setHeader("WWW-Authenticate", 'Basic realm="ESP32"');
-  return res.status(401).json({ error: "Unauthorized" });
-}
-
-function checkBasicAuth(req: NextApiRequest, res: NextApiResponse) {
-  const hdr = req.headers.authorization;
-  if (!hdr || !hdr.startsWith("Basic ")) return unauthorized(res);
-  const decoded = Buffer.from(hdr.replace("Basic ", ""), "base64").toString("utf8");
-  const [user, pass] = decoded.split(":");
-  const expectedUser = process.env.ESP32_USER || "esp32";
-  const expectedPass = process.env.ESP32_PASS || "secret";
-  if (user !== expectedUser || pass !== expectedPass) return unauthorized(res);
-  return true;
-}
-
 function getClientIp(req: NextApiRequest) {
   const xfwd = req.headers["x-forwarded-for"];
   const xreal = req.headers["x-real-ip"];
-  const first = Array.isArray(xfwd) ? xfwd[0] : typeof xfwd === "string" ? xfwd.split(",")[0]?.trim() : undefined;
-  return first || (Array.isArray(xreal) ? xreal[0] : (xreal as string)) || req.socket.remoteAddress || "unknown";
+  const first = Array.isArray(xfwd)
+    ? xfwd[0]
+    : typeof xfwd === "string"
+      ? xfwd.split(",")[0]?.trim()
+      : undefined;
+  return (
+    first ||
+    (Array.isArray(xreal) ? xreal[0] : (xreal as string)) ||
+    req.socket.remoteAddress ||
+    "unknown"
+  );
 }
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse,
+) {
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
     return res.status(405).json({ error: "Método no permitido" });
   }
-
-  if (checkBasicAuth(req, res) !== true) return; // Responded with 401
 
   try {
     const { id_espacio, estado, timestamp } = req.body || {};
@@ -57,7 +51,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // Registrar en historial
     await prisma.spaceLog.create({
-      data: { space_id: id, occupied: estado, timestamp: ts, ip: getClientIp(req) },
+      data: {
+        space_id: id,
+        occupied: estado,
+        timestamp: ts,
+        ip: getClientIp(req),
+      },
     });
 
     // También auditar en AuditLog por trazabilidad general
@@ -76,9 +75,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     let code: string | undefined;
     if (estado === true) {
       // Reutiliza código activo si existe; si no, genera uno nuevo
-      const cutoff = new Date(Date.now() - (parseInt(process.env.WAITING_TIMEOUT_MINUTES || "30", 10)) * 60 * 1000);
+      const cutoff = new Date(
+        Date.now() -
+          parseInt(process.env.WAITING_TIMEOUT_MINUTES || "30", 10) * 60 * 1000,
+      );
       const existing = await prisma.parkingCode.findFirst({
-        where: { space_id: id, status: "WAITING", fecha_creacion: { gt: cutoff } },
+        where: {
+          space_id: id,
+          status: "WAITING",
+          fecha_creacion: { gt: cutoff },
+        },
         select: { codigo: true },
       });
       if (existing) {
@@ -88,8 +94,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         for (let i = 0; i < 5; i++) {
           const c = Math.floor(100000 + Math.random() * 900000).toString();
           try {
-            await prisma.parkingCode.create({ data: { codigo: c, status: "WAITING", space_id: id } });
-            code = c; break;
+            await prisma.parkingCode.create({
+              data: { codigo: c, status: "WAITING", space_id: id },
+            });
+            code = c;
+            break;
           } catch (e: any) {
             if (!/Unique constraint failed/i.test(e?.message || "")) throw e;
           }
