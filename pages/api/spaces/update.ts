@@ -107,6 +107,38 @@ export default async function handler(
     }
     // Si el espacio pasó a libre, expirar códigos activos (WAITING/CLAIMED) asociados
     if (estado === false) {
+      const start = await prisma.spaceLog.findFirst({
+        where: { space_id: id, occupied: true },
+        orderBy: { timestamp: "desc" },
+        select: { timestamp: true },
+      });
+      if (start) {
+        const ms = ts.getTime() - new Date(start.timestamp).getTime();
+        if (ms > 0) {
+          const minutes = Math.ceil(ms / 60000);
+          const rate = parseFloat(process.env.PARKING_RATE_PER_MINUTE || "1");
+          const currency = process.env.PARKING_CURRENCY || "MXN";
+          const amount = Math.round(minutes * rate * 100) / 100;
+          const assoc = await prisma.parkingCode.findFirst({
+            where: { space_id: id, status: "CLAIMED" },
+            orderBy: { fecha_actualizacion: "desc" },
+            select: { codigo: true },
+          });
+          if (assoc?.codigo) {
+            try {
+              await prisma.payment.create({
+                data: {
+                  codigo: assoc.codigo,
+                  space_id: id,
+                  amount: amount as any,
+                  currency,
+                  status: "PENDING",
+                },
+              });
+            } catch {}
+          }
+        }
+      }
       const expired = await prisma.parkingCode.updateMany({
         where: { space_id: id, status: { in: ["WAITING", "CLAIMED"] } },
         data: { status: "EXPIRED" },

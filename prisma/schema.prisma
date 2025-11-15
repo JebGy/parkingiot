@@ -17,6 +17,11 @@ enum Status {
   EXPIRED
 }
 
+enum PaymentStatus {
+  PENDING
+  PAID
+}
+
 model ParkingCode {
   codigo             String  @id
   status             Status
@@ -24,6 +29,7 @@ model ParkingCode {
   fecha_actualizacion DateTime @updatedAt
   space_id           Int?
   space              ParkingSpace? @relation(name: "SpaceCodes", fields: [space_id], references: [id])
+  payments           Payment[]
 }
 
 model AuditLog {
@@ -57,4 +63,18 @@ model SpaceLog {
   space ParkingSpace @relation(fields: [space_id], references: [id], onDelete: Cascade)
 
   @@index([space_id, timestamp])
+}
+
+model Payment {
+  id           Int           @id @default(autoincrement())
+  codigo       String
+  code         ParkingCode   @relation(fields: [codigo], references: [codigo])
+  space_id     Int
+  amount       Decimal       @db.Decimal(10,2)
+  currency     String        @default("MXN")
+  status       PaymentStatus @default(PENDING)
+  created_at   DateTime      @default(now())
+  paid_at      DateTime?
+
+  @@index([space_id, status])
 }

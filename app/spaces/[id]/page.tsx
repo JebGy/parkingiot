@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 type Space = { id: number; occupied: boolean; updated_at: string | null };
 type Claimed = { codigo: string; fecha_actualizacion: string } | null;
 type Waiting = { codigo: string; fecha_creacion: string } | null;
+type Payment = { id: number; codigo: string; amount: string | number; currency: string; status: string; created_at: string } | null;
 
 export default function SpaceDetail() {
   const params = useParams<{ id: string }>();
@@ -17,6 +18,7 @@ export default function SpaceDetail() {
   const [error, setError] = useState<string>("");
   const [claimed, setClaimed] = useState<Claimed>(null);
   const [waiting, setWaiting] = useState<Waiting>(null);
+  const [pendingPayment, setPendingPayment] = useState<Payment>(null);
   const stateLabel = useMemo(() => {
     if (space?.occupied) return "Ocupado";
     if (claimed) return "En proceso de liberación";
@@ -47,6 +49,14 @@ export default function SpaceDetail() {
       setWaiting({ codigo: w.codigo, fecha_creacion: w.fecha_creacion });
     } else {
       setWaiting(null);
+    }
+    const rp = await fetch(`/api/payments?space_id=${spaceId}&status=PENDING`);
+    const dp = await rp.json();
+    if (rp.ok && Array.isArray(dp.payments) && dp.payments.length > 0) {
+      const p = dp.payments[0];
+      setPendingPayment({ id: p.id, codigo: p.codigo, amount: p.amount, currency: p.currency, status: p.status, created_at: p.created_at });
+    } else {
+      setPendingPayment(null);
     }
   };
 
@@ -96,6 +106,28 @@ export default function SpaceDetail() {
     }
   };
 
+  const pay = async () => {
+    if (!pendingPayment) return;
+    setError("");
+    setMessage("");
+    setLoading(true);
+    try {
+      const res = await fetch("/api/payments", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ codigo: pendingPayment.codigo }),
+      });
+      const data = await res.json();
+      setLoading(false);
+      if (!res.ok) { setError(data?.error || "Error al pagar"); return; }
+      setMessage("Pago registrado");
+      await loadSpace();
+    } catch {
+      setLoading(false);
+      setError("Error de red");
+    }
+  };
+
   return (
     <div className="min-h-screen p-6">
       <div className={`rounded-md p-4 border ${panelClass}`}>
@@ -130,6 +162,18 @@ export default function SpaceDetail() {
             </div>
             {error && <div className="text-red-400 text-sm">{error}</div>}
             {message && <div className="text-green-400 text-sm">{message}</div>}
+          </div>
+        )}
+        {pendingPayment && (
+          <div className="mt-6 space-y-3">
+            <div className="text-sm">Monto pendiente: <span className="font-mono">{pendingPayment.currency} {Number(pendingPayment.amount).toFixed(2)}</span></div>
+            <button
+              onClick={pay}
+              disabled={loading}
+              className="px-3 py-2 rounded-md bg-green-600 disabled:opacity-50"
+            >
+              {loading ? "Procesando…" : "Pagar"}
+            </button>
           </div>
         )}
       </div>
