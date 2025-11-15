@@ -4,6 +4,7 @@ import { useParams } from "next/navigation";
 
 type Space = { id: number; occupied: boolean; updated_at: string | null };
 type Claimed = { codigo: string; fecha_actualizacion: string } | null;
+type Waiting = { codigo: string; fecha_creacion: string } | null;
 
 export default function SpaceDetail() {
   const params = useParams<{ id: string }>();
@@ -15,6 +16,7 @@ export default function SpaceDetail() {
   const [message, setMessage] = useState<string>("");
   const [error, setError] = useState<string>("");
   const [claimed, setClaimed] = useState<Claimed>(null);
+  const [waiting, setWaiting] = useState<Waiting>(null);
   const stateLabel = useMemo(() => {
     if (space?.occupied) return "Ocupado";
     if (claimed) return "En proceso de liberación";
@@ -37,6 +39,14 @@ export default function SpaceDetail() {
       setClaimed({ codigo: c.codigo, fecha_actualizacion: c.fecha_actualizacion });
     } else {
       setClaimed(null);
+    }
+    const rw = await fetch(`/api/codes?status=WAITING&space_id=${spaceId}&order=desc`);
+    const dw = await rw.json();
+    if (rw.ok && Array.isArray(dw.codes) && dw.codes.length > 0) {
+      const w = dw.codes[0];
+      setWaiting({ codigo: w.codigo, fecha_creacion: w.fecha_creacion });
+    } else {
+      setWaiting(null);
     }
   };
 
@@ -62,6 +72,8 @@ export default function SpaceDetail() {
     }
     if (!space) { setError("Espacio no encontrado"); return; }
     if (claimed) { setError("Espacio con código ya registrado"); return; }
+    if (!space.occupied) { setError("Espacio libre"); return; }
+    if (!waiting) { setError("Sin ticket reciente para este espacio"); return; }
     setLoading(true);
     try {
       const res = await fetch("/api/codes", {
@@ -106,11 +118,11 @@ export default function SpaceDetail() {
                 placeholder="Ingrese código de 6 caracteres"
                 className="flex-1 px-3 py-2 rounded-md border border-white/20 bg-transparent"
                 maxLength={6}
-                disabled={loading}
+                disabled={loading || !space?.occupied || !waiting}
               />
               <button
                 onClick={submit}
-                disabled={loading}
+                disabled={loading || !space?.occupied || !waiting}
                 className="px-3 py-2 rounded-md bg-blue-600 disabled:opacity-50"
               >
                 {loading ? "Enviando…" : "Asociar"}
