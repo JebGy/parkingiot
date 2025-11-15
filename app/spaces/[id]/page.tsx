@@ -83,7 +83,8 @@ export default function SpaceDetail() {
     if (!space) { setError("Espacio no encontrado"); return; }
     if (claimed) { setError("Espacio con código ya registrado"); return; }
     if (!space.occupied) { setError("Espacio libre"); return; }
-    if (!waiting) { setError("Sin ticket reciente para este espacio"); return; }
+    // Permitir asociación aunque no exista ticket WAITING vinculado al espacio,
+    // siempre que el código ingresado esté en estado WAITING globalmente
     setLoading(true);
     try {
       const res = await fetch("/api/codes", {
@@ -150,16 +151,19 @@ export default function SpaceDetail() {
                 placeholder="Ingrese código de 6 caracteres"
                 className="flex-1 px-3 py-2 rounded-md border border-white/20 bg-transparent"
                 maxLength={6}
-                disabled={loading || !space?.occupied || !waiting}
+                disabled={loading || !space?.occupied}
               />
               <button
                 onClick={submit}
-                disabled={loading || !space?.occupied || !waiting}
+                disabled={loading || !space?.occupied}
                 className="px-3 py-2 rounded-md bg-blue-600 disabled:opacity-50"
               >
                 {loading ? "Enviando…" : "Asociar"}
               </button>
             </div>
+            {waiting && (
+              <div className="text-xs text-gray-300">Ticket reciente para este espacio: <span className="font-mono">{waiting.codigo}</span></div>
+            )}
             {error && <div className="text-red-400 text-sm">{error}</div>}
             {message && <div className="text-green-400 text-sm">{message}</div>}
           </div>

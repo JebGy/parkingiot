@@ -41,19 +41,21 @@ async function expireOldWaitingCodes() {
 }
 
 async function expireOldClaimedUnpaidCodes() {
-  const grace = parseInt(process.env.PAYMENT_GRACE_MINUTES || "60", 10);
-  const cutoff = new Date(Date.now() - grace * 60 * 1000);
-  const pending = await prisma.payment.findMany({
-    where: { status: "PENDING", created_at: { lte: cutoff } },
-    select: { codigo: true },
-  });
-  if (pending.length === 0) return;
-  const codigos = Array.from(new Set(pending.map((p) => p.codigo))).filter(Boolean);
-  if (codigos.length === 0) return;
-  await prisma.parkingCode.updateMany({
-    where: { codigo: { in: codigos }, status: "CLAIMED" },
-    data: { status: "EXPIRED" },
-  });
+  try {
+    const grace = parseInt(process.env.PAYMENT_GRACE_MINUTES || "60", 10);
+    const cutoff = new Date(Date.now() - grace * 60 * 1000);
+    const pending = await prisma.payment.findMany({
+      where: { status: "PENDING", created_at: { lte: cutoff } },
+      select: { codigo: true },
+    });
+    if (pending.length === 0) return;
+    const codigos = Array.from(new Set(pending.map((p) => p.codigo))).filter(Boolean);
+    if (codigos.length === 0) return;
+    await prisma.parkingCode.updateMany({
+      where: { codigo: { in: codigos }, status: "CLAIMED" },
+      data: { status: "EXPIRED" },
+    });
+  } catch {}
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
