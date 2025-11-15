@@ -5,8 +5,9 @@ import { useParams } from "next/navigation";
 type Space = { id: number; occupied: boolean; updated_at: string | null };
 
 export default function SpaceDetail() {
-  const { id } = useParams<{ id: string }>();
-  const spaceId = Number(id);
+  const params = useParams<{ id: string }>();
+  const idParam = params?.id;
+  const spaceId = Number(idParam ?? NaN);
   const [space, setSpace] = useState<Space | null>(null);
   const [loading, setLoading] = useState(false);
   const [code, setCode] = useState("");
@@ -26,6 +27,10 @@ export default function SpaceDetail() {
   };
 
   useEffect(() => {
+    if (!Number.isInteger(spaceId) || spaceId < 1 || spaceId > 3) {
+      setError("Espacio no encontrado");
+      return;
+    }
     loadSpace();
     const poll = setInterval(loadSpace, 30000);
     return () => clearInterval(poll);
@@ -71,7 +76,7 @@ export default function SpaceDetail() {
     <div className="min-h-screen p-6">
       <div className={`rounded-md p-4 border ${panelClass}`}>
         <div className="flex items-center justify-between">
-          <span className="font-semibold">Espacio {spaceId}</span>
+          <span className="font-semibold">Espacio {Number.isInteger(spaceId) ? spaceId : "-"}</span>
           <span className={`px-2 py-1 rounded text-xs ${badgeClass}`}>{space?.occupied ? "Ocupado" : "Libre"}</span>
         </div>
         <p className="mt-2 text-sm">Última actualización: {space?.updated_at ? new Date(space.updated_at).toLocaleString() : "—"}</p>
