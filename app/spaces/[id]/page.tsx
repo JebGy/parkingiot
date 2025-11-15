@@ -6,6 +6,7 @@ type Space = { id: number; occupied: boolean; updated_at: string | null };
 type Claimed = { codigo: string; fecha_actualizacion: string } | null;
 type Waiting = { codigo: string; fecha_creacion: string } | null;
 type Payment = { id: number; codigo: string; amount: string | number; currency: string; status: string; created_at: string } | null;
+type PaymentDetail = { id: number; codigo: string; amount: number; amount_calculated: number; amount_final: number; time_used_minutes: number; currency: string; status: string; created_at: string } | null;
 
 export default function SpaceDetail() {
   const params = useParams<{ id: string }>();
@@ -18,7 +19,8 @@ export default function SpaceDetail() {
   const [error, setError] = useState<string>("");
   const [claimed, setClaimed] = useState<Claimed>(null);
   const [waiting, setWaiting] = useState<Waiting>(null);
-  const [pendingPayment, setPendingPayment] = useState<Payment>(null);
+  const [pendingPayment, setPendingPayment] = useState<PaymentDetail>(null);
+  const [method, setMethod] = useState<string>("");
   const stateLabel = useMemo(() => {
     if (space?.occupied) return "Ocupado";
     if (claimed) return "En proceso de liberación";
@@ -54,7 +56,7 @@ export default function SpaceDetail() {
     const dp = await rp.json();
     if (rp.ok && Array.isArray(dp.payments) && dp.payments.length > 0) {
       const p = dp.payments[0];
-      setPendingPayment({ id: p.id, codigo: p.codigo, amount: p.amount, currency: p.currency, status: p.status, created_at: p.created_at });
+      setPendingPayment({ id: p.id, codigo: p.codigo, amount: Number(p.amount), amount_calculated: Number(p.amount_calculated ?? p.amount), amount_final: Number(p.amount_final ?? p.amount), time_used_minutes: Number(p.time_used_minutes ?? 0), currency: p.currency, status: p.status, created_at: p.created_at });
     } else {
       setPendingPayment(null);
     }
@@ -116,7 +118,7 @@ export default function SpaceDetail() {
       const res = await fetch("/api/payments", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ codigo: pendingPayment.codigo }),
+        body: JSON.stringify({ codigo: pendingPayment.codigo, method }),
       });
       const data = await res.json();
       setLoading(false);
@@ -170,14 +172,23 @@ export default function SpaceDetail() {
         )}
         {pendingPayment && (
           <div className="mt-6 space-y-3">
-            <div className="text-sm">Monto pendiente: <span className="font-mono">{pendingPayment.currency} {Number(pendingPayment.amount).toFixed(2)}</span></div>
-            <button
-              onClick={pay}
-              disabled={loading}
-              className="px-3 py-2 rounded-md bg-green-600 disabled:opacity-50"
-            >
-              {loading ? "Procesando…" : "Pagar"}
-            </button>
+            <div className="text-sm">Tiempo utilizado: <span className="font-mono">{pendingPayment.time_used_minutes} min</span></div>
+            <div className="text-sm">Monto calculado: <span className="font-mono">{pendingPayment.currency} {pendingPayment.amount_calculated.toFixed(2)}</span></div>
+            <div className="text-sm">Monto final: <span className="font-mono">{pendingPayment.currency} {pendingPayment.amount_final.toFixed(2)}</span></div>
+            <div className="flex items-center space-x-2">
+              <select value={method} onChange={(e) => setMethod(e.target.value)} className="px-3 py-2 rounded-md border border-white/20 bg-transparent">
+                <option value="">Selecciona método</option>
+                <option value="CASH">Efectivo</option>
+                <option value="CARD">Tarjeta</option>
+              </select>
+              <button
+                onClick={pay}
+                disabled={loading || !method}
+                className="px-3 py-2 rounded-md bg-green-600 disabled:opacity-50"
+              >
+                {loading ? "Procesando…" : "Pagar"}
+              </button>
+            </div>
           </div>
         )}
       </div>

@@ -115,10 +115,12 @@ export default async function handler(
       if (start) {
         const ms = ts.getTime() - new Date(start.timestamp).getTime();
         if (ms > 0) {
-          const minutes = Math.ceil(ms / 60000);
-          const rate = parseFloat(process.env.PARKING_RATE_PER_MINUTE || "1");
-          const currency = process.env.PARKING_CURRENCY || "MXN";
-          const amount = Math.round(minutes * rate * 100) / 100;
+          const minutes = Math.round(ms / 60000);
+          const nearest = Math.round(minutes / 15) * 15;
+          const intervals = Math.max(nearest / 15, 0);
+          const base = 5;
+          const calculated = intervals * base;
+          const finalAmount = Math.max(calculated, 1);
           const assoc = await prisma.parkingCode.findFirst({
             where: { space_id: id, status: "CLAIMED" },
             orderBy: { fecha_actualizacion: "desc" },
@@ -130,8 +132,11 @@ export default async function handler(
                 data: {
                   codigo: assoc.codigo,
                   space_id: id,
-                  amount: amount as any,
-                  currency,
+                  amount: finalAmount as any,
+                  amount_calculated: calculated as any,
+                  amount_final: finalAmount as any,
+                  time_used_minutes: nearest,
+                  currency: "PEN",
                   status: "PENDING",
                 },
               });

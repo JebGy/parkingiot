@@ -22,6 +22,11 @@ enum PaymentStatus {
   PAID
 }
 
+enum PaymentMethod {
+  CASH
+  CARD
+}
+
 model ParkingCode {
   codigo             String  @id
   status             Status
@@ -71,8 +76,13 @@ model Payment {
   code         ParkingCode   @relation(fields: [codigo], references: [codigo])
   space_id     Int
   amount       Decimal       @db.Decimal(10,2)
-  currency     String        @default("MXN")
+  amount_calculated Decimal  @db.Decimal(10,2)
+  amount_final Decimal       @db.Decimal(10,2)
+  time_used_minutes Int
+  currency     String        @default("PEN")
   status       PaymentStatus @default(PENDING)
+  method       PaymentMethod?
+  receipt_number String?
   created_at   DateTime      @default(now())
   paid_at      DateTime?
 
