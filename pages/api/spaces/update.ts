@@ -105,6 +105,23 @@ export default async function handler(
         }
       }
     }
+    // Si el espacio pasó a libre, expirar códigos activos (WAITING/CLAIMED) asociados
+    if (estado === false) {
+      const expired = await prisma.parkingCode.updateMany({
+        where: { space_id: id, status: { in: ["WAITING", "CLAIMED"] } },
+        data: { status: "EXPIRED" },
+      });
+      try {
+        await prisma.auditLog.create({
+          data: {
+            usuario_id: "ESP32",
+            ip: getClientIp(req),
+            accion: "SPACE_RELEASE",
+            datos: { id_espacio: id, expirados: expired.count, timestamp: ts.toISOString() } as any,
+          },
+        });
+      } catch {}
+    }
 
     // Responder incluyendo el código cuando aplica
     return res.status(200).json({ ok: true, space, code });
