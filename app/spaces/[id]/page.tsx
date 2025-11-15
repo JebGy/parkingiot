@@ -178,7 +178,7 @@ export default function SpaceDetail() {
 
             {pendingPayment && (
               <div className="space-y-3 md:space-y-4">
-                <div className="text-sm md:text-base">Tiempo utilizado: <span className="font-mono">{pendingPayment.time_used_minutes} min</span></div>
+                {/* <div className="text-sm md:text-base">Tiempo utilizado: <span className="font-mono">{pendingPayment.time_used_minutes} min</span></div> */}
                 <div className="text-sm md:text-base">Monto calculado: <span className="font-mono">{pendingPayment.currency} {pendingPayment.amount_calculated.toFixed(2)}</span></div>
                 <div className="text-sm md:text-base">Monto final: <span className="font-mono">{pendingPayment.currency} {pendingPayment.amount_final.toFixed(2)}</span></div>
                 <div className="flex flex-col md:flex-row md:items-center gap-2">
