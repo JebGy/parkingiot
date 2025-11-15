@@ -1,10 +1,12 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
+import { useParams } from "next/navigation";
 
 type Space = { id: number; occupied: boolean; updated_at: string | null };
 
-export default function SpaceDetail({ params }: { params: { id: string } }) {
-  const spaceId = Number(params.id);
+export default function SpaceDetail() {
+  const { id } = useParams<{ id: string }>();
+  const spaceId = Number(id);
   const [space, setSpace] = useState<Space | null>(null);
   const [loading, setLoading] = useState(false);
   const [code, setCode] = useState("");
