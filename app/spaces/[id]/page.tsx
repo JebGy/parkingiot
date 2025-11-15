@@ -132,65 +132,73 @@ export default function SpaceDetail() {
   };
 
   return (
-    <div className="min-h-screen p-6">
-      <div className={`rounded-md p-4 border ${panelClass}`}>
-        <div className="flex items-center justify-between">
-          <span className="font-semibold">Espacio {Number.isInteger(spaceId) ? spaceId : "-"}</span>
-          <span className={`px-2 py-1 rounded text-xs ${badgeClass}`}>{stateLabel}</span>
-        </div>
-        <p className="mt-2 text-sm">Última actualización: {space?.updated_at ? new Date(space.updated_at).toLocaleString() : "—"}</p>
-        {claimed ? (
-          <div className="mt-4 space-y-2">
-            <div className="text-sm">Código registrado: <span className="font-mono">{claimed.codigo}</span></div>
-            <div className="text-xs text-gray-300">Registrado: {new Date(claimed.fecha_actualizacion).toLocaleString()}</div>
+    <div className="min-h-screen px-3 sm:px-4 md:px-6 py-4 sm:py-6">
+      <div className="max-w-5xl mx-auto">
+        <div className={`rounded-lg md:rounded-xl p-4 md:p-6 border ${panelClass}`}>
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+            <span className="font-semibold text-lg md:text-xl lg:text-2xl">Espacio {Number.isInteger(spaceId) ? spaceId : "-"}</span>
+            <span className={`px-2 py-1 md:px-3 md:py-1.5 rounded text-xs md:text-sm ${badgeClass}`}>{stateLabel}</span>
           </div>
-        ) : (
-          <div className="mt-4 space-y-3">
-            <div className="flex items-center space-x-2">
-              <input
-                value={code}
-                onChange={(e) => setCode(e.target.value)}
-                placeholder="Ingrese código de 6 caracteres"
-                className="flex-1 px-3 py-2 rounded-md border border-white/20 bg-transparent"
-                maxLength={6}
-                disabled={loading || !space?.occupied}
-              />
-              <button
-                onClick={submit}
-                disabled={loading || !space?.occupied}
-                className="px-3 py-2 rounded-md bg-blue-600 disabled:opacity-50"
-              >
-                {loading ? "Enviando…" : "Asociar"}
-              </button>
+          <p className="mt-2 text-xs md:text-sm lg:text-base">Última actualización: {space?.updated_at ? new Date(space.updated_at).toLocaleString() : "—"}</p>
+
+          <div className="mt-4 lg:mt-6 grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
+            <div>
+              {claimed ? (
+                <div className="space-y-2 md:space-y-3">
+                  <div className="text-sm md:text-base">Código registrado: <span className="font-mono">{claimed.codigo}</span></div>
+                  <div className="text-xs md:text-sm text-gray-300">Registrado: {new Date(claimed.fecha_actualizacion).toLocaleString()}</div>
+                </div>
+              ) : (
+                <div className="space-y-3 md:space-y-4">
+                  <div className="flex flex-col md:flex-row md:items-center md:space-x-2 space-y-2 md:space-y-0">
+                    <input
+                      value={code}
+                      onChange={(e) => setCode(e.target.value)}
+                      placeholder="Ingrese código de 6 caracteres"
+                      className="w-full md:flex-1 px-3 py-2 md:py-2.5 lg:py-3 rounded-md border border-white/20 bg-transparent text-sm md:text-base min-h-[44px]"
+                      maxLength={6}
+                      disabled={loading || !space?.occupied}
+                    />
+                    <button
+                      onClick={submit}
+                      disabled={loading || !space?.occupied}
+                      className="w-full md:w-auto px-4 md:px-5 py-2 md:py-2.5 lg:py-3 rounded-md bg-blue-600 disabled:opacity-50 text-sm md:text-base min-h-[44px]"
+                    >
+                      {loading ? "Enviando…" : "Asociar"}
+                    </button>
+                  </div>
+                  {waiting && (
+                    <div className="text-xs sm:text-sm text-gray-300">Ticket reciente para este espacio: <span className="font-mono">{waiting.codigo}</span></div>
+                  )}
+                  {error && <div className="text-red-400 text-sm md:text-base">{error}</div>}
+                  {message && <div className="text-green-400 text-sm md:text-base">{message}</div>}
+                </div>
+              )}
             </div>
-            {waiting && (
-              <div className="text-xs text-gray-300">Ticket reciente para este espacio: <span className="font-mono">{waiting.codigo}</span></div>
+
+            {pendingPayment && (
+              <div className="space-y-3 md:space-y-4">
+                <div className="text-sm md:text-base">Tiempo utilizado: <span className="font-mono">{pendingPayment.time_used_minutes} min</span></div>
+                <div className="text-sm md:text-base">Monto calculado: <span className="font-mono">{pendingPayment.currency} {pendingPayment.amount_calculated.toFixed(2)}</span></div>
+                <div className="text-sm md:text-base">Monto final: <span className="font-mono">{pendingPayment.currency} {pendingPayment.amount_final.toFixed(2)}</span></div>
+                <div className="flex flex-col md:flex-row md:items-center gap-2">
+                  <select value={method} onChange={(e) => setMethod(e.target.value)} className="w-full md:w-auto px-3 py-2 md:py-2.5 lg:py-3 rounded-md border border-white/20 bg-transparent text-sm md:text-base min-h-[44px]">
+                    <option value="">Selecciona método</option>
+                    <option value="CASH">Efectivo</option>
+                    <option value="CARD">Tarjeta</option>
+                  </select>
+                  <button
+                    onClick={pay}
+                    disabled={loading || !method}
+                    className="w-full md:w-auto px-4 md:px-5 py-2 md:py-2.5 lg:py-3 rounded-md bg-green-600 disabled:opacity-50 text-sm md:text-base min-h-[44px]"
+                  >
+                    {loading ? "Procesando…" : "Pagar"}
+                  </button>
+                </div>
+              </div>
             )}
-            {error && <div className="text-red-400 text-sm">{error}</div>}
-            {message && <div className="text-green-400 text-sm">{message}</div>}
           </div>
-        )}
-        {pendingPayment && (
-          <div className="mt-6 space-y-3">
-            <div className="text-sm">Tiempo utilizado: <span className="font-mono">{pendingPayment.time_used_minutes} min</span></div>
-            <div className="text-sm">Monto calculado: <span className="font-mono">{pendingPayment.currency} {pendingPayment.amount_calculated.toFixed(2)}</span></div>
-            <div className="text-sm">Monto final: <span className="font-mono">{pendingPayment.currency} {pendingPayment.amount_final.toFixed(2)}</span></div>
-            <div className="flex items-center space-x-2">
-              <select value={method} onChange={(e) => setMethod(e.target.value)} className="px-3 py-2 rounded-md border border-white/20 bg-transparent">
-                <option value="">Selecciona método</option>
-                <option value="CASH">Efectivo</option>
-                <option value="CARD">Tarjeta</option>
-              </select>
-              <button
-                onClick={pay}
-                disabled={loading || !method}
-                className="px-3 py-2 rounded-md bg-green-600 disabled:opacity-50"
-              >
-                {loading ? "Procesando…" : "Pagar"}
-              </button>
-            </div>
-          </div>
-        )}
+        </div>
       </div>
     </div>
   );
