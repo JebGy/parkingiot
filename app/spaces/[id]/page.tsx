@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 
 type Space = { id: number; occupied: boolean; updated_at: string | null };
+type Claimed = { codigo: string; fecha_actualizacion: string } | null;
 
 export default function SpaceDetail() {
   const params = useParams<{ id: string }>();
@@ -13,9 +14,14 @@ export default function SpaceDetail() {
   const [code, setCode] = useState("");
   const [message, setMessage] = useState<string>("");
   const [error, setError] = useState<string>("");
-
-  const badgeClass = useMemo(() => (space?.occupied ? "bg-red-600" : "bg-green-600"), [space]);
-  const panelClass = useMemo(() => (space?.occupied ? "bg-red-600/20 border-red-600/40" : "bg-green-600/20 border-green-600/40"), [space]);
+  const [claimed, setClaimed] = useState<Claimed>(null);
+  const stateLabel = useMemo(() => {
+    if (space?.occupied) return "Ocupado";
+    if (claimed) return "En proceso de liberación";
+    return "Libre";
+  }, [space, claimed]);
+  const badgeClass = useMemo(() => (stateLabel === "Ocupado" ? "bg-red-600" : stateLabel === "En proceso de liberación" ? "bg-yellow-600" : "bg-green-600"), [stateLabel]);
+  const panelClass = useMemo(() => (stateLabel === "Ocupado" ? "bg-red-600/20 border-red-600/40" : stateLabel === "En proceso de liberación" ? "bg-yellow-600/20 border-yellow-600/40" : "bg-green-600/20 border-green-600/40"), [stateLabel]);
 
   const loadSpace = async () => {
     const res = await fetch("/api/spaces");
@@ -24,6 +30,14 @@ export default function SpaceDetail() {
     const s = (data.spaces || []).find((x: any) => Number(x.id) === spaceId);
     if (!s) return setError("Espacio no encontrado");
     setSpace({ id: s.id, occupied: !!s.occupied, updated_at: s.updated_at ? new Date(s.updated_at).toISOString() : null });
+    const rc = await fetch(`/api/codes?status=CLAIMED&space_id=${spaceId}&order=desc`);
+    const dc = await rc.json();
+    if (rc.ok && Array.isArray(dc.codes) && dc.codes.length > 0) {
+      const c = dc.codes[0];
+      setClaimed({ codigo: c.codigo, fecha_actualizacion: c.fecha_actualizacion });
+    } else {
+      setClaimed(null);
+    }
   };
 
   useEffect(() => {
@@ -46,10 +60,8 @@ export default function SpaceDetail() {
       setError("El código debe tener exactamente 6 caracteres alfanuméricos");
       return;
     }
-    if (!space || space.occupied) {
-      setError("Espacio ocupado");
-      return;
-    }
+    if (!space) { setError("Espacio no encontrado"); return; }
+    if (claimed) { setError("Espacio con código ya registrado"); return; }
     setLoading(true);
     try {
       const res = await fetch("/api/codes", {
@@ -77,12 +89,14 @@ export default function SpaceDetail() {
       <div className={`rounded-md p-4 border ${panelClass}`}>
         <div className="flex items-center justify-between">
           <span className="font-semibold">Espacio {Number.isInteger(spaceId) ? spaceId : "-"}</span>
-          <span className={`px-2 py-1 rounded text-xs ${badgeClass}`}>{space?.occupied ? "Ocupado" : "Libre"}</span>
+          <span className={`px-2 py-1 rounded text-xs ${badgeClass}`}>{stateLabel}</span>
         </div>
         <p className="mt-2 text-sm">Última actualización: {space?.updated_at ? new Date(space.updated_at).toLocaleString() : "—"}</p>
-
-        {space?.occupied ? (
-          <div className="mt-4 text-sm">Espacio ocupado</div>
+        {claimed ? (
+          <div className="mt-4 space-y-2">
+            <div className="text-sm">Código registrado: <span className="font-mono">{claimed.codigo}</span></div>
+            <div className="text-xs text-gray-300">Registrado: {new Date(claimed.fecha_actualizacion).toLocaleString()}</div>
+          </div>
         ) : (
           <div className="mt-4 space-y-3">
             <div className="flex items-center space-x-2">
@@ -92,6 +106,7 @@ export default function SpaceDetail() {
                 placeholder="Ingrese código de 6 caracteres"
                 className="flex-1 px-3 py-2 rounded-md border border-white/20 bg-transparent"
                 maxLength={6}
+                disabled={loading}
               />
               <button
                 onClick={submit}

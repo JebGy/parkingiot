@@ -47,10 +47,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const q = typeof req.query.q === "string" ? req.query.q : undefined;
     const sort = typeof req.query.sort === "string" ? req.query.sort : "fecha_creacion";
     const order = typeof req.query.order === "string" ? req.query.order.toLowerCase() : "desc";
+    const spaceParam = typeof req.query.space_id === "string" ? req.query.space_id : undefined;
+    const space_id = spaceParam ? Number(spaceParam) : undefined;
 
     const where: any = {};
     if (status) where.status = status as any;
     if (q) where.codigo = { contains: q };
+    if (space_id && Number.isInteger(space_id)) where.space_id = space_id;
 
     const codes = await prisma.parkingCode.findMany({
       where,
@@ -105,12 +108,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         if (!current) return res.status(404).json({ error: "Código no encontrado" });
         if (current.status === "EXPIRED") return res.status(400).json({ error: "Código expirado" });
         if (current.status !== "WAITING") return res.status(400).json({ error: "El código debe estar en estado WAITING" });
+
         const targetSpace = await prisma.parkingSpace.findUnique({
           where: { id: space_id },
           select: { id: true, occupied: true, updated_at: true },
         });
         if (!targetSpace) return res.status(404).json({ error: "Espacio no encontrado" });
-        if (targetSpace.occupied) return res.status(400).json({ error: "Espacio ya ocupado" });
+
+        const alreadyClaimed = await prisma.parkingCode.findFirst({
+          where: { space_id, status: "CLAIMED" },
+          select: { codigo: true },
+        });
+        if (alreadyClaimed) {
+          return res.status(400).json({ error: "Espacio con código ya registrado" });
+        }
+
         if (current.space_id && current.space_id !== space_id) {
           const otherSpace = await prisma.parkingSpace.findUnique({
             where: { id: current.space_id },
@@ -118,12 +130,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           });
           if (otherSpace?.occupied) return res.status(400).json({ error: "El código está vinculado a otro espacio ocupado" });
         }
+
         const updated = await prisma.parkingCode.update({
           where: { codigo: code },
-          data: { space_id },
+          data: { space_id, status: "CLAIMED" },
           select: { codigo: true, status: true, fecha_creacion: true, fecha_actualizacion: true, space_id: true },
         });
-        await logAction({ req, action: "ASSIGN_CODE", data: { codigo: code, space_id }, codigo: code });
+        await logAction({ req, action: "QR_ASSOCIATED", data: { codigo: code, space_id }, codigo: code });
         return res.status(200).json({ ok: true, code: updated });
       }
 
@@ -135,6 +148,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         if (!current) return res.status(404).json({ error: "Código no encontrado. Debe ser generado por el ESP32." });
         if (current.status === "EXPIRED") return res.status(400).json({ error: "No se puede reclamar un código expirado." });
         if (current.status !== "WAITING") return res.status(400).json({ error: "El código no está en estado WAITING." });
+      }
+
+      // Seguridad: impedir cambios manuales sobre códigos CLAIMED asociados a un espacio activo o en liberación
+      const currentForChange = await prisma.parkingCode.findUnique({
+        where: { codigo: code },
+        select: { status: true, space_id: true },
+      });
+      if (currentForChange?.status === "CLAIMED" && currentForChange.space_id) {
+        const s = await prisma.parkingSpace.findUnique({ where: { id: currentForChange.space_id }, select: { occupied: true } });
+        if (s?.occupied) {
+          return res.status(400).json({ error: "No se puede modificar un código registrado mientras el espacio está ocupado" });
+        }
       }
 
       const updated = await prisma.parkingCode.update({
