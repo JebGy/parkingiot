@@ -27,8 +27,8 @@ async function logAction(opts: { req: NextApiRequest; userId?: string | null; ac
 }
 
 function validateCodeFormat(code: string) {
-  const pattern = /^\d{6}$/;
-  if (!pattern.test(code)) return "El código debe tener 6 dígitos numéricos";
+  const pattern = /^[A-Za-z0-9]{6}$/;
+  if (!pattern.test(code)) return "El código debe tener exactamente 6 caracteres alfanuméricos";
   return null;
 }
 
@@ -85,12 +85,48 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const body = req.body || {};
     const code = (body?.codigo ?? body?.code ?? "").toString().trim();
     const status = (body?.status ?? "").toString().trim().toUpperCase();
+    const spaceIdRaw = body?.space_id;
+    const space_id = Number(spaceIdRaw);
     if (!code) return res.status(400).json({ error: "Código requerido" });
-    if (!status || !["CLAIMED", "WAITING", "EXPIRED"].includes(status)) {
-      return res.status(400).json({ error: "Estado inválido" });
+    if (spaceIdRaw === undefined) {
+      if (!status || !["CLAIMED", "WAITING", "EXPIRED"].includes(status)) {
+        return res.status(400).json({ error: "Estado inválido" });
+      }
     }
     try {
-      // Si el usuario intenta reclamar, validar estado actual
+      if (spaceIdRaw !== undefined) {
+        if (!Number.isInteger(space_id) || space_id < 1 || space_id > 3) {
+          return res.status(400).json({ error: "space_id inválido (1-3)" });
+        }
+        const current = await prisma.parkingCode.findUnique({
+          where: { codigo: code },
+          select: { status: true, space_id: true },
+        });
+        if (!current) return res.status(404).json({ error: "Código no encontrado" });
+        if (current.status === "EXPIRED") return res.status(400).json({ error: "Código expirado" });
+        if (current.status !== "WAITING") return res.status(400).json({ error: "El código debe estar en estado WAITING" });
+        const targetSpace = await prisma.parkingSpace.findUnique({
+          where: { id: space_id },
+          select: { id: true, occupied: true, updated_at: true },
+        });
+        if (!targetSpace) return res.status(404).json({ error: "Espacio no encontrado" });
+        if (targetSpace.occupied) return res.status(400).json({ error: "Espacio ya ocupado" });
+        if (current.space_id && current.space_id !== space_id) {
+          const otherSpace = await prisma.parkingSpace.findUnique({
+            where: { id: current.space_id },
+            select: { occupied: true },
+          });
+          if (otherSpace?.occupied) return res.status(400).json({ error: "El código está vinculado a otro espacio ocupado" });
+        }
+        const updated = await prisma.parkingCode.update({
+          where: { codigo: code },
+          data: { space_id },
+          select: { codigo: true, status: true, fecha_creacion: true, fecha_actualizacion: true, space_id: true },
+        });
+        await logAction({ req, action: "ASSIGN_CODE", data: { codigo: code, space_id }, codigo: code });
+        return res.status(200).json({ ok: true, code: updated });
+      }
+
       if (status === "CLAIMED") {
         const current = await prisma.parkingCode.findUnique({
           where: { codigo: code },
