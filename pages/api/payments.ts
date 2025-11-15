@@ -32,6 +32,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const body = req.body || {};
     const codigo = (body?.codigo ?? body?.code ?? "").toString().trim();
     if (!codigo) return res.status(400).json({ error: "Código requerido" });
+    const code = await prisma.parkingCode.findUnique({ where: { codigo }, select: { status: true } });
+    if (!code) return res.status(404).json({ error: "Código no encontrado" });
+    if (code.status === "EXPIRED") return res.status(400).json({ error: "Código expirado" });
     const pending = await prisma.payment.findFirst({
       where: { codigo, status: "PENDING" },
       orderBy: { created_at: "desc" },

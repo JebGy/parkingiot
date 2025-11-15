@@ -105,7 +105,7 @@ export default async function handler(
         }
       }
     }
-    // Si el espacio pasó a libre, expirar códigos activos (WAITING/CLAIMED) asociados
+    // Si el espacio pasó a libre, gestionar pagos y expiración condicionada de códigos
     if (estado === false) {
       const start = await prisma.spaceLog.findFirst({
         where: { space_id: id, occupied: true },
@@ -139,17 +139,32 @@ export default async function handler(
           }
         }
       }
-      const expired = await prisma.parkingCode.updateMany({
-        where: { space_id: id, status: { in: ["WAITING", "CLAIMED"] } },
+      const expiredWaiting = await prisma.parkingCode.updateMany({
+        where: { space_id: id, status: "WAITING" },
         data: { status: "EXPIRED" },
       });
+      const claimed = await prisma.parkingCode.findFirst({
+        where: { space_id: id, status: "CLAIMED" },
+        orderBy: { fecha_actualizacion: "desc" },
+        select: { codigo: true },
+      });
+      if (claimed?.codigo) {
+        const pay = await prisma.payment.findFirst({
+          where: { codigo: claimed.codigo },
+          orderBy: { created_at: "desc" },
+          select: { status: true },
+        });
+        if (pay?.status === "PAID") {
+          await prisma.parkingCode.update({ where: { codigo: claimed.codigo }, data: { status: "EXPIRED" } });
+        }
+      }
       try {
         await prisma.auditLog.create({
           data: {
             usuario_id: "ESP32",
             ip: getClientIp(req),
             accion: "SPACE_RELEASE",
-            datos: { id_espacio: id, expirados: expired.count, timestamp: ts.toISOString() } as any,
+            datos: { id_espacio: id, expirados_waiting: expiredWaiting.count, timestamp: ts.toISOString() } as any,
           },
         });
       } catch {}
