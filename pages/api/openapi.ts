@@ -100,10 +100,58 @@ const spec = {
         },
       },
     },
+    "/api/codigos/{codigo_id}/estado": {
+      patch: {
+        summary: "Marcar código como pagado y notificar servo",
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          { name: "codigo_id", in: "path", required: true, schema: { type: "string" }, description: "Código alfanumérico de 6 caracteres" }
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: { estado: { type: "string", enum: ["pagado"] } },
+                required: ["estado"],
+              },
+              examples: {
+                pago: { value: { estado: "pagado" } }
+              }
+            }
+          }
+        },
+        responses: {
+          200: {
+            description: "Actualización correcta",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    status: { type: "string" },
+                    servo_action: { type: "integer" },
+                    timestamp: { type: "string", format: "date-time" },
+                    codigo_id: { type: "string" }
+                  }
+                }
+              }
+            }
+          },
+          400: { description: "Solicitud mal formada" },
+          401: { description: "No autorizado" },
+          404: { description: "Código no encontrado" },
+          409: { description: "Conflicto" },
+          500: { description: "Error interno" }
+        }
+      }
+    }
   },
   components: {
     securitySchemes: {
       basicAuth: { type: "http", scheme: "basic" },
+      bearerAuth: { type: "http", scheme: "bearer", bearerFormat: "JWT" }
     },
   },
 } as const;
